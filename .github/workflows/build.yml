@@ -23,7 +23,8 @@ jobs:
 
     - name: Install dependencies
       run: |
-        git clone https://github.com/krassowski/jupyterlab.git@fix-lang-issue
+        git clone https://github.com/krassowski/jupyterlab.git
+        git checkout fix-lang-issue
         cd jupyterlab
         python -m build
         pip install dist/*.whl
