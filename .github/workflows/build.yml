@@ -23,7 +23,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        git clone -b fix-lang-issue https://github.com/krassowski/jupyterlab.git
+        git clone -b 4.3.x-k https://github.com/krassowski/jupyterlab.git
         cd jupyterlab
         python -m pip install build
         python -m build
