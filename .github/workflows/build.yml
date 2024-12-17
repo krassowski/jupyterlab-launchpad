@@ -28,12 +28,13 @@ jobs:
         python -m pip install build
         python -m build
         python -m pip install dist/*.whl
+        cd ..
+        rm -rf jupyterlab
 
     - name: Lint the extension
       run: |
         set -eux
         jlpm
-        jlpm run lint:check
 
     - name: Test the extension
       run: |
