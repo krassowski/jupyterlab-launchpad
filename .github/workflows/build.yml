@@ -25,11 +25,8 @@ jobs:
       run: |
         git clone -b 4.3.x-k https://github.com/krassowski/jupyterlab.git
         cd jupyterlab
-        python -m pip install build
-        python -m build
-        python -m pip install dist/*.whl
-        cd ..
-        rm -rf jupyterlab
+        python -m pip install -e .[dev]
+        jlpm run build
 
     - name: Lint the extension
       run: |
@@ -48,7 +45,7 @@ jobs:
 
         jupyter labextension list
         jupyter labextension list 2>&1 | grep -ie "jupyterlab-launchpad.*OK"
-        python -m jupyterlab.browser_check
+        python -m jupyterlab.browser_check --dev-mode
 
     - name: Package the extension
       run: |
