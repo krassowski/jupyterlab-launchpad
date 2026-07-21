@@ -5,7 +5,11 @@ import {
   JupyterFrontEnd,
   JupyterFrontEndPlugin
 } from '@jupyterlab/application';
-import { ICommandPalette, MainAreaWidget } from '@jupyterlab/apputils';
+import {
+  ICommandPalette,
+  MainAreaWidget,
+  showErrorMessage
+} from '@jupyterlab/apputils';
 import { FileBrowserModel, IDefaultFileBrowser } from '@jupyterlab/filebrowser';
 import { ILauncher } from '@jupyterlab/launcher';
 import { ISettingRegistry } from '@jupyterlab/settingregistry';
@@ -16,16 +20,29 @@ import { ReadonlyPartialJSONObject } from '@lumino/coreutils';
 import { DockPanel, TabBar, Widget } from '@lumino/widgets';
 import { NewLauncher as Launcher } from './launcher';
 import { NewModel as Model } from './model';
+import { refreshKernelsWithInvalidation } from './handler';
 import {
   CommandIDs,
   ILauncherDatabase,
+  ILaunchpadKernelTable,
   INewLauncher,
   MAIN_PLUGIN_ID
 } from './types';
 import { addCommands } from './commands';
 import { sessionDialogsPlugin } from './dialogs';
 import { databasePlugin } from './database';
+import { kernelTablePlugin } from './kernel-table';
+import { nebiKernelTablePlugin } from './components/nebi';
 import webkitCSSPatch from '../style/webkit.raw.css';
+
+export { CommandIDs, ILaunchpadKernelTable } from './types';
+export type {
+  IKernelAction,
+  IKernelActionOptions,
+  IKernelItem,
+  IKernelMetadataColumn,
+  IKernelMetadataRenderOptions
+} from './types';
 
 /**
  * Initialization data for the jupyterlab-launchpad extension.
@@ -35,18 +52,34 @@ const launcherPlugin: JupyterFrontEndPlugin<ILauncher> = {
   description: 'A redesigned JupyterLab launcher',
   provides: ILauncher,
   autoStart: true,
-  requires: [ITranslator, ISettingRegistry, ILauncherDatabase],
+  requires: [
+    ITranslator,
+    ISettingRegistry,
+    ILauncherDatabase,
+    ILaunchpadKernelTable
+  ],
   optional: [ILabShell, ICommandPalette, IDefaultFileBrowser],
   activate
 };
 
-export default [launcherPlugin, sessionDialogsPlugin, databasePlugin];
+export default [
+  kernelTablePlugin,
+  nebiKernelTablePlugin,
+  databasePlugin,
+  launcherPlugin,
+  sessionDialogsPlugin
+];
 
 function createStyleSheet(text: string): HTMLStyleElement {
   const style = document.createElement('style');
   style.setAttribute('type', 'text/css');
   style.appendChild(document.createTextNode(text));
   return style;
+}
+
+async function refreshKernelSpecs(app: JupyterFrontEnd): Promise<void> {
+  await refreshKernelsWithInvalidation();
+  await app.serviceManager.kernelspecs.refreshSpecs();
 }
 
 /**
@@ -57,6 +90,7 @@ function activate(
   translator: ITranslator,
   settingRegistry: ISettingRegistry,
   database: ILauncherDatabase,
+  kernelTable: ILaunchpadKernelTable,
   labShell: ILabShell | null,
   palette: ICommandPalette | null,
   defaultBrowser: IDefaultFileBrowser | null
@@ -136,6 +170,7 @@ function activate(
         translator,
         lastUsedDatabase: database.lastUsed,
         favoritesDatabase: database.favorites,
+        kernelTable,
         settings
       });
 
@@ -175,6 +210,23 @@ function activate(
     }
   });
 
+  commands.addCommand(CommandIDs.refreshKernels, {
+    label: trans.__('Refresh Kernels'),
+    execute: async () => {
+      try {
+        await refreshKernelSpecs(app);
+      } catch (error) {
+        console.error(error);
+        await showErrorMessage(
+          trans.__('Could not refresh kernels'),
+          trans.__(
+            'Kernel specs refresh failed. Check server logs and try again.'
+          )
+        );
+      }
+    }
+  });
+
   if (labShell) {
     void Promise.all([app.restored, defaultBrowser?.model.restored]).then(
       () => {
@@ -195,6 +247,10 @@ function activate(
   if (palette) {
     palette.addItem({
       command: CommandIDs.create,
+      category: trans.__('Launcher')
+    });
+    palette.addItem({
+      command: CommandIDs.refreshKernels,
       category: trans.__('Launcher')
     });
   }
